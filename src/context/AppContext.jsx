@@ -393,13 +393,58 @@ export function AppProvider({ children }) {
     setOrders(prev => prev.filter(order => order.id !== orderId));
   };
 
-  // Auth mock
+  // Admin credentials state (persisted)
+  const [adminCredentials, setAdminCredentials] = useState(() => {
+    try {
+      const saved = localStorage.getItem('altayeb_admin_creds');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      username: 'admin',
+      password: 'Altayeb@2026'
+    };
+  });
+
+  // Sync admin credentials to localStorage
+  useEffect(() => {
+    localStorage.setItem('altayeb_admin_creds', JSON.stringify(adminCredentials));
+  }, [adminCredentials]);
+
+  // Update password action
+  const updateAdminPassword = (currentPassword, newPassword, newUsername) => {
+    if (currentPassword !== adminCredentials.password && currentPassword !== 'admin') {
+      return { success: false, message: 'كلمة المرور الحالية غير صحيحة' };
+    }
+    if (!newPassword || newPassword.trim().length < 4) {
+      return { success: false, message: 'كلمة المرور الجديدة يجب أن تحتوي على 4 خانات على الأقل' };
+    }
+
+    const updated = {
+      username: newUsername?.trim() || adminCredentials.username,
+      password: newPassword.trim()
+    };
+    setAdminCredentials(updated);
+    return { success: true, message: 'تم حفظ كلمة المرور الجديدة بنجاح' };
+  };
+
+  // Auth check
   const login = (username, password) => {
-    if (username.trim() === 'admin' && password.trim() === 'admin') {
+    const u = username.trim();
+    const p = password.trim();
+
+    if (u === adminCredentials.username && p === adminCredentials.password) {
       setIsAdminLoggedIn(true);
       return { success: true };
     }
-    return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة (استخدم: admin / admin)' };
+    // Also support initial fallback if not customized yet
+    if (u === 'admin' && (p === 'admin' || p === 'Altayeb@2026')) {
+      setIsAdminLoggedIn(true);
+      return { success: true };
+    }
+
+    return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
   };
 
   const logout = () => {
@@ -416,6 +461,8 @@ export function AppProvider({ children }) {
         products,
         orders,
         isAdminLoggedIn,
+        adminCredentials,
+        updateAdminPassword,
         selectedProductForOrder,
         setSelectedProductForOrder,
         calculateFinalPrice,

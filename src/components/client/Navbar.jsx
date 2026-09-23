@@ -5,7 +5,7 @@ import { ShieldCheck, Sparkles, LayoutDashboard, ChevronDown } from 'lucide-reac
 
 export default function Navbar() {
   const location = useLocation();
-  const { categories } = useApp();
+  const { categories, isAdminLoggedIn } = useApp();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm transition-all">
@@ -103,16 +103,33 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right Action: Admin Portal Link */}
+          {/* Right Action: Customer CTA (Hidden Admin portal unless already logged in) */}
           <div className="flex items-center gap-3">
-            <Link
-              to="/admin"
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-saudi-800 to-saudi-700 hover:from-saudi-900 hover:to-saudi-800 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition-all duration-200 active:scale-95"
-              id="admin-dashboard-nav-btn"
-            >
-              <LayoutDashboard className="w-4 h-4 text-gold-400" />
-              <span>لوحة الإدارة</span>
-            </Link>
+            {isAdminLoggedIn ? (
+              <Link
+                to="/admin"
+                className="inline-flex items-center gap-1.5 bg-saudi-800 hover:bg-saudi-900 text-gold-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-gold-500/30 shadow-sm transition-all"
+                id="admin-dashboard-nav-btn"
+                title="أنت مسجل كمدير نظام"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5 text-gold-400" />
+                <span>لوحة الإدارة</span>
+              </Link>
+            ) : (
+              <a
+                href="#national-day-offers"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const el = document.getElementById('national-day-offers');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  else window.location.href = '/#national-day-offers';
+                }}
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-saudi-950 text-xs sm:text-sm font-black px-4 py-2 rounded-xl shadow-sm transition-all"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>عروض اليوم الوطني</span>
+              </a>
+            )}
           </div>
         </div>
       </div>

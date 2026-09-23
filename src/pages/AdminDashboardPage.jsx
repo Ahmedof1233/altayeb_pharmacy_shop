@@ -5,12 +5,22 @@ import AdminSidebar from '../components/admin/AdminSidebar';
 import ProductsTable from '../components/admin/ProductsTable';
 import OrdersTable from '../components/admin/OrdersTable';
 import CategoriesManager from '../components/admin/CategoriesManager';
-import { ShoppingBag, DollarSign, Package, Clock, ShieldCheck, Layers } from 'lucide-react';
+import { ShoppingBag, DollarSign, Package, Clock, ShieldCheck, Layers, Key, X, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function AdminDashboardPage() {
-  const { isAdminLoggedIn, products, orders, categories } = useApp();
+  const { isAdminLoggedIn, products, orders, categories, adminCredentials, updateAdminPassword } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('categories'); // default to categories or products
+
+  // Password Change Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newUsername: adminCredentials?.username || 'admin',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordStatus, setPasswordStatus] = useState({ error: '', success: '' });
 
   useEffect(() => {
     if (!isAdminLoggedIn) {
@@ -23,6 +33,38 @@ export default function AdminDashboardPage() {
   // Compute metrics
   const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0).toFixed(2);
   const newOrdersCount = orders.filter(o => o.status === 'جديد').length;
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    setPasswordStatus({ error: '', success: '' });
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordStatus({ error: 'كلمة المرور الجديدة وتأكيدها غير متطابقين', success: '' });
+      return;
+    }
+
+    const res = updateAdminPassword(
+      passwordForm.currentPassword,
+      passwordForm.newPassword,
+      passwordForm.newUsername
+    );
+
+    if (res.success) {
+      setPasswordStatus({ error: '', success: res.message });
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+        setPasswordStatus({ error: '', success: '' });
+        setPasswordForm({
+          currentPassword: '',
+          newUsername: passwordForm.newUsername,
+          newPassword: '',
+          confirmPassword: ''
+        });
+      }, 1500);
+    } else {
+      setPasswordStatus({ error: res.message, success: '' });
+    }
+  };
 
   const getHeaderInfo = () => {
     switch (activeTab) {
@@ -71,17 +113,150 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Change Password Button */}
+            <button
+              onClick={() => {
+                setPasswordForm({
+                  currentPassword: '',
+                  newUsername: adminCredentials?.username || 'admin',
+                  newPassword: '',
+                  confirmPassword: ''
+                });
+                setPasswordStatus({ error: '', success: '' });
+                setIsPasswordModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-all"
+              id="admin-change-password-btn"
+            >
+              <Key className="w-3.5 h-3.5 text-saudi-700" />
+              <span>تغيير كلمة المرور</span>
+            </button>
+
             <div className="bg-white border border-gray-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
               <div className="w-8 h-8 rounded-full bg-saudi-100 text-saudi-800 flex items-center justify-center font-bold text-xs">
                 م
               </div>
               <div className="text-right">
-                <span className="text-xs font-bold text-gray-900 block">مدير النظام</span>
+                <span className="text-xs font-bold text-gray-900 block">{adminCredentials?.username || 'مدير النظام'}</span>
                 <span className="text-[10px] text-emerald-600 font-semibold">متصل الآن</span>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Change Password Modal */}
+        {isPasswordModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
+            <div className="relative bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+              <button
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="absolute top-5 left-5 p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-right mb-6">
+                <div className="w-12 h-12 bg-saudi-50 text-saudi-700 rounded-xl flex items-center justify-center mb-3 border border-saudi-200">
+                  <Key className="w-6 h-6 text-saudi-700" />
+                </div>
+                <h3 className="text-xl font-black font-tajawal text-gray-900">
+                  تغيير بيانات الدخول وكلمة المرور
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  قم بتعيين كلمة مرور سرية جديدة للوحة التحكم لحماية بيانات الصيدلية
+                </p>
+              </div>
+
+              {passwordStatus.error && (
+                <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-3 text-xs mb-4 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{passwordStatus.error}</span>
+                </div>
+              )}
+
+              {passwordStatus.success && (
+                <div className="bg-green-50 text-green-700 border border-green-200 rounded-xl p-3 text-xs mb-4 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{passwordStatus.success}</span>
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-3.5 text-right">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    اسم المستخدم (Username)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={passwordForm.newUsername}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newUsername: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-saudi-600 focus:bg-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    كلمة المرور الحالية <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="أدخل كلمة المرور الحالية"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-saudi-600 focus:bg-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    كلمة المرور الجديدة <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="اختر كلمة مرور سرية جديدة"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-saudi-600 focus:bg-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    تأكيد كلمة المرور الجديدة <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="أعد كتابة كلمة المرور الجديدة"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-saudi-600 focus:bg-white outline-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-50"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-saudi-700 hover:bg-saudi-800 text-white text-xs font-bold shadow-md transition-colors"
+                    id="admin-save-password-btn"
+                  >
+                    حفظ التغييرات
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Stats Metrics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -47,11 +47,6 @@ export default function Footer() {
                   عروض بيرت بلس والعناية بالشعر (خصم 70%)
                 </Link>
               </li>
-              <li>
-                <Link to="/admin" className="hover:text-gold-300 transition-colors inline-flex items-center gap-1 mt-2 text-gold-400 font-bold">
-                  🔒 لوحة تحكم الإدارة
-                </Link>
-              </li>
             </ul>
           </div>
 

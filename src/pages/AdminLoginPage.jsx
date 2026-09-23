@@ -7,8 +7,8 @@ export default function AdminLoginPage() {
   const { login, isAdminLoggedIn } = useApp();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   // If already logged in, redirect
@@ -56,18 +56,6 @@ export default function AdminLoginPage() {
           <p className="text-xs text-gray-500 mt-1">
             تسجيل دخول مسؤول النظام لإدارة المنتجات والطلبات
           </p>
-        </div>
-
-        {/* Credentials Notice for Reviewer */}
-        <div className="bg-saudi-50 border border-saudi-200 rounded-xl p-3.5 mb-6 text-xs text-saudi-800">
-          <div className="font-bold flex items-center gap-1.5 mb-1 text-saudi-900">
-            <ShieldCheck className="w-4 h-4 text-saudi-700" />
-            <span>بيانات الدخول الافتراضية (مجهزة مسبقاً):</span>
-          </div>
-          <div className="flex gap-4 font-mono text-xs">
-            <span>المستخدم: <strong className="text-saudi-900 font-bold">admin</strong></span>
-            <span>كلمة المرور: <strong className="text-saudi-900 font-bold">admin</strong></span>
-          </div>
         </div>
 
         {error && (
