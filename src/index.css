@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #006C35;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #004d25;
+}
+
+/* Custom festive badge glow */
+.gold-glow {
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.45);
+}
+
+.green-glow {
+  box-shadow: 0 0 30px rgba(0, 108, 53, 0.35);
+}
