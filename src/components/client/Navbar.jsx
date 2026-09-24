@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { ShieldCheck, Sparkles, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { ShieldCheck, Sparkles, LayoutDashboard, ChevronDown, ShoppingBag } from 'lucide-react';
 
 export default function Navbar() {
   const location = useLocation();
-  const { categories, isAdminLoggedIn } = useApp();
+  const { categories, isAdminLoggedIn, cartCount, setIsCartOpen } = useApp();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm transition-all">
@@ -33,35 +33,35 @@ export default function Navbar() {
       </div>
 
       {/* Main Nav */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo & Brand Identity */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
+          <Link to="/" className="flex items-center gap-2 sm:gap-3 group min-w-0">
+            <div className="relative flex-shrink-0">
               <img
                 src="/images/altayeb_logo.webp"
                 alt="صيدلية الطيب"
-                className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                className="h-10 sm:h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'flex';
                 }}
               />
-              <div className="hidden h-12 w-12 bg-saudi-700 text-white rounded-xl items-center justify-center font-black text-xl shadow-md">
+              <div className="hidden h-10 w-10 sm:h-12 sm:w-12 bg-saudi-700 text-white rounded-xl items-center justify-center font-black text-lg sm:text-xl shadow-md">
                 ط
               </div>
             </div>
             
-            <div className="border-r-2 border-saudi-700 pr-3">
+            <div className="border-r-2 border-saudi-700 pr-2 sm:pr-3 min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="text-xl sm:text-2xl font-black text-saudi-800 tracking-tight font-tajawal">
+                <h1 className="text-base sm:text-2xl font-black text-saudi-800 tracking-tight font-tajawal truncate">
                   صيدلية الطيب
                 </h1>
-                <span className="bg-saudi-100 text-saudi-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-saudi-300">
+                <span className="hidden sm:inline-block bg-saudi-100 text-saudi-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-saudi-300 flex-shrink-0">
                   معتمدة
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 font-medium">
+              <p className="hidden sm:block text-[11px] text-gray-500 font-medium truncate">
                 عروض اليوم الوطني 96 · نحلم ونحقق
               </p>
             </div>
@@ -103,8 +103,28 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right Action: Customer CTA (Hidden Admin portal unless already logged in) */}
-          <div className="flex items-center gap-3">
+          {/* Right Action: Cart & Customer CTA */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Cart Button */}
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="relative flex items-center gap-1.5 sm:gap-2 bg-saudi-50 hover:bg-saudi-100 text-saudi-900 border border-saudi-200/80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition-all shadow-sm group flex-shrink-0"
+              title="سلة المشتريات"
+              id="navbar-cart-btn"
+            >
+              <div className="relative">
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-saudi-700 group-hover:scale-110 transition-transform" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[9px] sm:text-[10px] font-black w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center animate-pulse shadow-sm">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+              <span className="hidden sm:inline text-xs font-bold font-tajawal">
+                السلة
+              </span>
+            </button>
+
             {isAdminLoggedIn ? (
               <Link
                 to="/admin"
@@ -113,7 +133,7 @@ export default function Navbar() {
                 title="أنت مسجل كمدير نظام"
               >
                 <LayoutDashboard className="w-3.5 h-3.5 text-gold-400" />
-                <span>لوحة الإدارة</span>
+                <span className="hidden sm:inline">لوحة الإدارة</span>
               </Link>
             ) : (
               <a
@@ -124,10 +144,11 @@ export default function Navbar() {
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                   else window.location.href = '/#national-day-offers';
                 }}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-saudi-950 text-xs sm:text-sm font-black px-4 py-2 rounded-xl shadow-sm transition-all"
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-saudi-950 text-xs sm:text-sm font-black px-3.5 sm:px-4 py-2 rounded-xl shadow-sm transition-all"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>عروض اليوم الوطني</span>
+                <span className="hidden sm:inline">عروض اليوم الوطني</span>
+                <span className="sm:hidden">العروض</span>
               </a>
             )}
           </div>

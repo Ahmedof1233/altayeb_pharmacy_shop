@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import ProductCard from '../components/client/ProductCard';
-import OrderModal from '../components/client/OrderModal';
 import { ArrowRight, Sparkles, ChevronLeft, ShieldCheck, Tag } from 'lucide-react';
 
 export default function BrandPage() {
@@ -128,9 +127,6 @@ export default function BrandPage() {
           )}
         </section>
       </div>
-
-      {/* Order Modal */}
-      <OrderModal />
     </div>
   );
 }

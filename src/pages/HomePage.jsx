@@ -4,7 +4,6 @@ import Hero from '../components/client/Hero';
 import FeaturesBanner from '../components/client/FeaturesBanner';
 import BrandCarousel from '../components/client/BrandCarousel';
 import ProductCard from '../components/client/ProductCard';
-import OrderModal from '../components/client/OrderModal';
 import { Search, Sparkles, Filter, Percent } from 'lucide-react';
 
 export default function HomePage() {
@@ -126,9 +125,6 @@ export default function HomePage() {
           </div>
         )}
       </section>
-
-      {/* Floating/Triggered Order Modal */}
-      <OrderModal />
     </div>
   );
 }

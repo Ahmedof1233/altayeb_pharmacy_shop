@@ -177,10 +177,15 @@ export function subscribeToOrders(callback, onError) {
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const items = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          firestoreId: doc.id,
+          id: doc.id, // Primary ID is guaranteed to be Firestore document ID
+          orderNumber: data.orderNumber || data.id || `SA96-${doc.id.slice(0, 6)}`
+        };
+      });
       items.sort((a, b) => {
         const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.timestamp || 0);
         const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.timestamp || 0);
@@ -204,22 +209,70 @@ export async function addOrderToFirestore(orderData) {
     timestamp: Date.now()
   });
   const docRef = await addDoc(colRef, cleaned);
-  return { id: docRef.id, ...orderData };
+  return { id: docRef.id, firestoreId: docRef.id, ...orderData };
 }
 
 export async function updateOrderStatusInFirestore(orderId, newStatus) {
   if (!isFirebaseConfigured || !db) throw new Error('Firebase غير متصل');
-  const docRef = doc(db, 'orders', String(orderId));
-  await updateDoc(docRef, { 
-    status: newStatus,
-    updatedAt: serverTimestamp()
-  });
+  try {
+    const docRef = doc(db, 'orders', String(orderId));
+    await updateDoc(docRef, { 
+      status: newStatus,
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    // Fallback: search doc by orderNumber or id
+    const colRef = collection(db, 'orders');
+    const snapshot = await getDocs(colRef);
+    for (const d of snapshot.docs) {
+      const data = d.data();
+      if (d.id === String(orderId) || data.id === String(orderId) || data.orderNumber === String(orderId)) {
+        await updateDoc(doc(db, 'orders', d.id), {
+          status: newStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
+    }
+  }
 }
 
-export async function deleteOrderFromFirestore(orderId) {
+export async function deleteOrderFromFirestore(orderId, orderNumber) {
   if (!isFirebaseConfigured || !db) throw new Error('Firebase غير متصل');
-  const docRef = doc(db, 'orders', String(orderId));
-  await deleteDoc(docRef);
+  
+  // 1. Direct delete by document id
+  try {
+    const docRef = doc(db, 'orders', String(orderId));
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn('Direct deleteDoc failed, checking fallback query...', err);
+  }
+
+  // 2. Fallback search by id or orderNumber in case older document has mismatched id
+  try {
+    const colRef = collection(db, 'orders');
+    const snapshot = await getDocs(colRef);
+    for (const d of snapshot.docs) {
+      const data = d.data();
+      if (
+        d.id === String(orderId) ||
+        data.id === String(orderId) ||
+        data.orderNumber === String(orderId) ||
+        (orderNumber && (data.orderNumber === String(orderNumber) || data.id === String(orderNumber)))
+      ) {
+        await deleteDoc(doc(db, 'orders', d.id));
+      }
+    }
+  } catch (err) {
+    console.error('Error in search fallback for deleteOrderFromFirestore:', err);
+  }
+}
+
+export async function clearAllOrdersFromFirestore() {
+  if (!isFirebaseConfigured || !db) throw new Error('Firebase غير متصل');
+  const colRef = collection(db, 'orders');
+  const snapshot = await getDocs(colRef);
+  const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, 'orders', d.id)));
+  await Promise.all(deletePromises);
 }
 
 // -------------------------------------------------------------

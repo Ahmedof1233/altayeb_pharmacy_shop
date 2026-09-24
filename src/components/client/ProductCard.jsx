@@ -1,20 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { ShoppingBag, Sparkles, Tag, Percent, Gift } from 'lucide-react';
+import { ShoppingBag, Sparkles, Tag, Percent, Gift, Zap, Check, ChevronLeft } from 'lucide-react';
 
 export default function ProductCard({ product }) {
-  const { calculateOfferPricing, setSelectedProductForOrder, brandsInfo } = useApp();
+  const { calculateOfferPricing, setSelectedProductForOrder, brandsInfo, addToCart, cart } = useApp();
+  const [justAdded, setJustAdded] = useState(false);
 
   const pricing1 = calculateOfferPricing(product, 1);
   const pricing2 = calculateOfferPricing(product, 2);
   const brandMeta = brandsInfo[product.brand.toLowerCase()] || { nameAr: product.brand };
 
+  const cartItem = cart.find(c => String(c.product.id) === String(product.id));
+  const inCartCount = cartItem ? cartItem.quantity : 0;
+
+  const defaultQty = (product.offerType === 'second_piece_96' || product.offerType === 'two_for_96') ? 2 : 1;
+
+  const handleAddToCart = () => {
+    addToCart(product, defaultQty, true);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1500);
+  };
+
   const handleOrderClick = () => {
-    // If it's a 2-piece deal (like second piece 96% or 2 for 96), default quantity to 2
-    const initialQty = (product.offerType === 'second_piece_96' || product.offerType === 'two_for_96') ? 2 : 1;
     setSelectedProductForOrder({
       ...product,
-      initialQty,
+      initialQty: defaultQty,
       pricing1,
       pricing2
     });
@@ -43,8 +54,12 @@ export default function ProductCard({ product }) {
         </span>
       </div>
 
-      {/* Product Image Wrap */}
-      <div className="relative w-full h-56 bg-gradient-to-b from-gray-50 to-white flex items-center justify-center p-6 overflow-hidden">
+      {/* Product Image Wrap (Links to Product Page) */}
+      <Link 
+        to={`/product/${product.id}`}
+        className="relative w-full h-56 bg-gradient-to-b from-gray-50 to-white flex items-center justify-center p-6 overflow-hidden cursor-pointer"
+        title="عرض تفاصيل المنتج"
+      >
         <img
           src={product.image || '/images/altayeb_logo.webp'}
           alt={product.name}
@@ -55,15 +70,17 @@ export default function ProductCard({ product }) {
             e.target.src = 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80';
           }}
         />
-      </div>
+      </Link>
 
       {/* Body Content */}
       <div className="p-5 flex-1 flex flex-col justify-between border-t border-gray-50">
         <div>
-          {/* Product Name */}
-          <h3 className="font-tajawal font-bold text-base sm:text-lg text-gray-900 group-hover:text-saudi-700 transition-colors line-clamp-2 leading-snug mb-1">
-            {product.nameAr || product.name}
-          </h3>
+          {/* Product Name (Links to Product Page) */}
+          <Link to={`/product/${product.id}`} className="block group/title">
+            <h3 className="font-tajawal font-bold text-base sm:text-lg text-gray-900 group-hover/title:text-saudi-700 transition-colors line-clamp-2 leading-snug mb-1">
+              {product.nameAr || product.name}
+            </h3>
+          </Link>
 
           {product.nameAr && product.name !== product.nameAr && (
             <p className="text-xs text-gray-400 font-sans line-clamp-1 mb-2">
@@ -72,10 +89,19 @@ export default function ProductCard({ product }) {
           )}
 
           {product.description && (
-            <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">
+            <p className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed">
               {product.description}
             </p>
           )}
+
+          {/* Quick link to details */}
+          <Link
+            to={`/product/${product.id}`}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-saudi-700 hover:text-saudi-900 transition-colors mb-3"
+          >
+            <span>عرض تفاصيل المنتج والكميات</span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
         <div>
@@ -149,15 +175,46 @@ export default function ProductCard({ product }) {
             </div>
           </div>
 
-          {/* "اطلب الآن" (Order Now) Button */}
-          <button
-            onClick={handleOrderClick}
-            className="w-full inline-flex items-center justify-center gap-2 bg-saudi-700 hover:bg-saudi-800 active:bg-saudi-900 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 group/btn"
-            id={`order-btn-${product.id}`}
-          >
-            <ShoppingBag className="w-4 h-4 text-gold-300 transition-transform group-hover/btn:scale-110" />
-            <span>اطلب الآن واستفد من العرض</span>
-          </button>
+          {/* Action Buttons: Add to Cart + Direct Order */}
+          <div className="space-y-2">
+            {/* Primary Add to Cart Button */}
+            <button
+              onClick={handleAddToCart}
+              className={`w-full inline-flex items-center justify-center gap-2 font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-md transition-all duration-200 active:scale-[0.98] ${
+                justAdded
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-saudi-700 hover:bg-saudi-800 text-white'
+              }`}
+              id={`add-to-cart-btn-${product.id}`}
+            >
+              {justAdded ? (
+                <>
+                  <Check className="w-4 h-4 animate-in zoom-in" />
+                  <span>تمت الإضافة للسلة ✓</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-4 h-4 text-gold-300" />
+                  <span>
+                    {inCartCount > 0 
+                      ? `أضف المزيد للسلة (${inCartCount} في السلة)` 
+                      : 'أضف إلى السلة'}
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* Direct Instant Order Button */}
+            <button
+              onClick={handleOrderClick}
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gold-50 text-gray-700 hover:text-saudi-900 border border-gray-200 hover:border-gold-300 font-bold text-xs py-2 px-3 rounded-xl transition-all duration-200"
+              id={`direct-order-btn-${product.id}`}
+              title="طلب هذا المنتج فوراً بدون الذهاب للسلة"
+            >
+              <Zap className="w-3.5 h-3.5 text-gold-600" />
+              <span>شراء فوري الآن</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

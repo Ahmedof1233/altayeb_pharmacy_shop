@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { ShoppingCart, Phone, MapPin, Trash2, Calendar, MessageCircle, Clock, CheckCircle2, Truck, AlertTriangle } from 'lucide-react';
 
 export default function OrdersTable() {
-  const { orders, updateOrderStatus, deleteOrder } = useApp();
+  const { orders, updateOrderStatus, deleteOrder, clearAllOrders } = useApp();
   const [filterStatus, setFilterStatus] = useState('all');
 
   const filteredOrders = orders.filter(o => {
@@ -47,7 +47,14 @@ export default function OrdersTable() {
 
   const handleDelete = (orderId, orderNum) => {
     if (window.confirm(`هل أنت متأكد من حذف الطلب رقم ${orderNum}؟`)) {
-      deleteOrder(orderId);
+      deleteOrder(orderId, orderNum);
+    }
+  };
+
+  const handleClearAllTestOrders = () => {
+    if (orders.length === 0) return;
+    if (window.confirm(`⚠️ تحذير: هل أنت متأكد من حذف جميع الطلبات (${orders.length} طلب) بشكل نهائي؟\nهذا الإجراء مخصص لتنظيف جميع الطلبات التجريبية المسجلة.`)) {
+      clearAllOrders();
     }
   };
 
@@ -101,8 +108,21 @@ export default function OrdersTable() {
           </div>
         </div>
 
-        <div className="text-xs text-gray-500 font-medium">
-          إجمالي الطلبات الواردة: <strong className="text-gray-900 font-bold">{orders.length}</strong> طلب
+        <div className="flex items-center gap-3 justify-between sm:justify-end">
+          <div className="text-xs text-gray-500 font-medium">
+            إجمالي الطلبات: <strong className="text-gray-900 font-bold">{orders.length}</strong>
+          </div>
+
+          {orders.length > 0 && (
+            <button
+              onClick={handleClearAllTestOrders}
+              className="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-1.5 px-3 rounded-xl transition-colors shadow-sm"
+              title="حذف جميع الطلبات المسجلة لتنظيف المتجر من الطلبات التجريبية"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+              <span>مسح الطلبات التجريبية</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -126,8 +146,15 @@ export default function OrdersTable() {
               {filteredOrders.length > 0 ? (
                 filteredOrders.map(order => {
                   // Format Clean Phone for WhatsApp
-                  const rawPhone = order.phone.replace(/[^0-9]/g, '');
+                  const rawPhone = (order.phone || '').replace(/[^0-9]/g, '');
                   const waNumber = rawPhone.startsWith('05') ? `966${rawPhone.slice(1)}` : rawPhone;
+
+                  // Prepare itemized message for WhatsApp
+                  const itemsListText = order.items && order.items.length > 0
+                    ? order.items.map(it => `- ${it.name} (${it.quantity} قطع)`).join('\n')
+                    : `- ${order.product?.name || 'طلب'} (${order.quantity || 1} قطع)`;
+
+                  const waText = `مرحباً ${order.customerName || 'عميلنا العزيز'}، نتواصل معك من صيدلية الطيب بخصوص طلبك رقم (${order.orderNumber}):\n${itemsListText}\nالإجمالي المطلوب: ${order.totalAmount} ر.س\nالعنوان: ${order.address || ''}`;
 
                   return (
                     <tr key={order.id} className="hover:bg-gray-50/70 transition-colors">
@@ -153,11 +180,11 @@ export default function OrdersTable() {
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-gray-700 text-xs">{order.phone}</span>
                           <a
-                            href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`مرحباً ${order.customerName}، نتواصل معك بخصوص طلبك من صيدلية الطيب رقم ${order.orderNumber}`)}`}
+                            href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1 rounded bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                            title="محادثة واتساب"
+                            title="محادثة واتساب بتفاصيل الطلب"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                           </a>
@@ -172,14 +199,46 @@ export default function OrdersTable() {
                         </div>
                       </td>
 
-                      {/* Product Ordered */}
+                      {/* Product(s) Ordered */}
                       <td className="py-3.5 px-4 max-w-xs">
-                        <p className="font-bold text-gray-900 leading-tight">
-                          {order.product.name}
-                        </p>
-                        <span className="text-[11px] text-gray-500">
-                          الكمية: {order.quantity} × {order.product.finalPrice} ر.س
-                        </span>
+                        {order.items && order.items.length > 1 ? (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span className="bg-saudi-100 text-saudi-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-saudi-200">
+                                🛒 سلة ({order.items.length} منتجات)
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-bold">
+                                {order.quantity} قطع
+                              </span>
+                            </div>
+                            <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                              {order.items.map((it, idx) => (
+                                <div key={idx} className="text-xs bg-gray-50 p-1.5 rounded-lg border border-gray-100 flex justify-between items-center">
+                                  <span className="font-bold text-gray-800 truncate max-w-[140px]" title={it.name}>
+                                    {it.name}
+                                  </span>
+                                  <span className="text-[10px] text-saudi-700 font-bold font-mono">
+                                    ×{it.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-bold text-gray-900 leading-tight">
+                              {order.items?.[0]?.name || order.product?.name || 'طلب صيدلية الطيب'}
+                            </p>
+                            <span className="text-[11px] text-gray-500">
+                              الكمية: {order.quantity || 1} قطعة
+                            </span>
+                            {order.offerSummary && (
+                              <span className="block text-[10px] text-emerald-700 font-bold truncate max-w-[200px]" title={order.offerSummary}>
+                                {order.offerSummary}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Total */}

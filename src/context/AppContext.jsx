@@ -15,6 +15,7 @@ import {
   addOrderToFirestore,
   updateOrderStatusInFirestore,
   deleteOrderFromFirestore,
+  clearAllOrdersFromFirestore,
   loginWithFirebase,
   logoutWithFirebase,
   resetPasswordWithFirebase,
@@ -280,6 +281,24 @@ export function AppProvider({ children }) {
     return [];
   });
 
+  // Shopping Cart state with localStorage persistence
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem('altayeb_cart');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading cart from localStorage:', e);
+    }
+    return [];
+  });
+
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [cartToast, setCartToast] = useState(null);
+
   // Admin auth state (persisted)
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
     return localStorage.getItem('altayeb_admin_auth') === 'true';
@@ -287,7 +306,7 @@ export function AppProvider({ children }) {
 
   const [currentAdminUser, setCurrentAdminUser] = useState(null);
 
-  // Active modal product for ordering
+  // Active modal product for single instant ordering
   const [selectedProductForOrder, setSelectedProductForOrder] = useState(null);
 
   // -------------------------------------------------------------
@@ -347,6 +366,11 @@ export function AppProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('altayeb_orders', JSON.stringify(orders));
   }, [orders]);
+
+  // Sync cart to localStorage
+  useEffect(() => {
+    localStorage.setItem('altayeb_cart', JSON.stringify(cart));
+  }, [cart]);
 
   // Sync admin auth
   useEffect(() => {
@@ -471,23 +495,171 @@ export function AppProvider({ children }) {
     setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
   };
 
-  // Add Order
+  // -------------------------------------------------------------
+  // Shopping Cart Actions & Computations
+  // -------------------------------------------------------------
+  const addToCart = (product, qtyToAdd = 1, showToast = true) => {
+    const quantity = parseInt(qtyToAdd, 10) || 1;
+    setCart(prevCart => {
+      const index = prevCart.findIndex(item => String(item.product.id) === String(product.id));
+      if (index > -1) {
+        const updated = [...prevCart];
+        const newQty = updated[index].quantity + quantity;
+        updated[index] = {
+          ...updated[index],
+          quantity: newQty
+        };
+        return updated;
+      } else {
+        return [...prevCart, { id: product.id, product, quantity }];
+      }
+    });
+
+    if (showToast) {
+      setCartToast({
+        id: Date.now(),
+        productName: product.nameAr || product.name,
+        quantity,
+        image: product.image
+      });
+      setTimeout(() => {
+        setCartToast(null);
+      }, 3500);
+    }
+  };
+
+  const updateCartQuantity = (productId, newQuantity) => {
+    const qty = parseInt(newQuantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart(prevCart =>
+      prevCart.map(item =>
+        String(item.product.id) === String(productId)
+          ? { ...item, quantity: qty }
+          : item
+      )
+    );
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(prevCart => prevCart.filter(item => String(item.product.id) !== String(productId)));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  // Detailed cart items with live calculated offer pricing
+  const cartItemsWithPricing = cart.map(item => {
+    const pricing = calculateOfferPricing(item.product, item.quantity);
+    return {
+      ...item,
+      pricing
+    };
+  });
+
+  const cartTotal = cartItemsWithPricing
+    .reduce((sum, item) => sum + parseFloat(item.pricing.total || 0), 0)
+    .toFixed(2);
+
+  const cartOriginalTotal = cartItemsWithPricing
+    .reduce((sum, item) => sum + parseFloat(item.pricing.originalTotal || 0), 0)
+    .toFixed(2);
+
+  const cartSavings = cartItemsWithPricing
+    .reduce((sum, item) => sum + parseFloat(item.pricing.savings || 0), 0)
+    .toFixed(2);
+
+  const cartCount = cart.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 1), 0);
+
+  // Add Order (Supports single product or multi-item cart)
   const addOrder = async (orderData) => {
     const newOrderId = `SA96-${Math.floor(100000 + Math.random() * 900000)}`;
-    const pricing = calculateOfferPricing(orderData.product, orderData.quantity || 1);
+
+    let orderItems = [];
+    let totalAmount = '0.00';
+    let savings = '0.00';
+    let offerSummary = '';
+    let totalQuantity = 0;
+    let mainProduct = null;
+
+    if (orderData.items && Array.isArray(orderData.items) && orderData.items.length > 0) {
+      orderItems = orderData.items.map(item => {
+        const itemPricing = item.pricing || calculateOfferPricing(item.product, item.quantity);
+        return {
+          id: item.product.id,
+          name: item.product.nameAr || item.product.name,
+          nameEn: item.product.name || '',
+          image: item.product.image || '',
+          brand: item.product.brand || '',
+          price: String(item.product.price || '0'),
+          quantity: item.quantity,
+          unitPrice: itemPricing.unitDisplayPrice,
+          total: itemPricing.total,
+          savings: itemPricing.savings,
+          offerType: item.product.offerType || 'percentage',
+          offerSummary: itemPricing.summaryText
+        };
+      });
+
+      const numTotal = orderItems.reduce((sum, it) => sum + parseFloat(it.total || 0), 0);
+      const numSavings = orderItems.reduce((sum, it) => sum + parseFloat(it.savings || 0), 0);
+      totalQuantity = orderItems.reduce((sum, it) => sum + parseInt(it.quantity || 1, 10), 0);
+
+      totalAmount = numTotal.toFixed(2);
+      savings = numSavings.toFixed(2);
+      offerSummary = orderItems.map(it => `${it.name} (${it.quantity})`).join(' + ');
+
+      mainProduct = {
+        id: orderItems[0].id,
+        name: orderItems.length === 1 
+          ? orderItems[0].name 
+          : `${orderItems[0].name} (و ${orderItems.length - 1} منتجات أخرى)`,
+        price: orderItems[0].price,
+        finalPrice: (numTotal / (totalQuantity || 1)).toFixed(2),
+        image: orderItems[0].image
+      };
+    } else if (orderData.product) {
+      const pricing = calculateOfferPricing(orderData.product, orderData.quantity || 1);
+      totalQuantity = orderData.quantity || 1;
+      totalAmount = pricing.total;
+      savings = pricing.savings;
+      offerSummary = pricing.summaryText;
+      mainProduct = {
+        id: orderData.product.id,
+        name: orderData.product.nameAr || orderData.product.name,
+        price: String(orderData.product.price || '0'),
+        discount: orderData.product.discount || '',
+        offerType: orderData.product.offerType || 'percentage',
+        bundlePrice: orderData.product.bundlePrice || '',
+        offerPrice: orderData.product.offerPrice || '',
+        finalPrice: pricing.unitDisplayPrice,
+        image: orderData.product.image || ''
+      };
+      orderItems = [{
+        ...mainProduct,
+        quantity: totalQuantity,
+        total: totalAmount,
+        savings: savings,
+        offerSummary: offerSummary
+      }];
+    }
 
     const newOrder = {
       id: newOrderId,
       orderNumber: newOrderId,
-      customerName: orderData.customerName,
-      phone: orderData.phone,
-      address: orderData.address,
-      product: orderData.product,
-      quantity: orderData.quantity || 1,
-      totalAmount: pricing.total,
-      savings: pricing.savings,
-      offerSummary: pricing.summaryText,
-      notes: orderData.notes || '',
+      customerName: (orderData.customerName || '').trim(),
+      phone: (orderData.phone || '').trim(),
+      address: (orderData.address || '').trim(),
+      notes: (orderData.notes || '').trim(),
+      product: mainProduct || { name: 'طلب سلة المشتريات' },
+      items: orderItems,
+      quantity: totalQuantity,
+      totalAmount,
+      savings,
+      offerSummary,
       status: 'جديد',
       createdAt: new Date().toISOString()
     };
@@ -518,16 +690,33 @@ export function AppProvider({ children }) {
     ));
   };
 
-  // Delete Order
-  const deleteOrder = async (orderId) => {
+  // Delete Order (with document ID and orderNumber fallback)
+  const deleteOrder = async (orderId, orderNumber) => {
     if (isFirebaseConfigured) {
       try {
-        await deleteOrderFromFirestore(orderId);
+        await deleteOrderFromFirestore(orderId, orderNumber);
       } catch (e) {
         console.error('Failed to delete order from Firebase:', e);
       }
     }
-    setOrders(prev => prev.filter(order => String(order.id) !== String(orderId)));
+    setOrders(prev => prev.filter(order => 
+      String(order.id) !== String(orderId) &&
+      String(order.orderNumber) !== String(orderId) &&
+      (!orderNumber || String(order.orderNumber) !== String(orderNumber))
+    ));
+  };
+
+  // Clear All Orders (for resetting test data)
+  const clearAllOrders = async () => {
+    if (isFirebaseConfigured) {
+      try {
+        await clearAllOrdersFromFirestore();
+      } catch (e) {
+        console.error('Failed to clear all orders from Firebase:', e);
+      }
+    }
+    setOrders([]);
+    localStorage.removeItem('altayeb_orders');
   };
 
   // Admin credentials state (local legacy fallback)
@@ -666,6 +855,23 @@ export function AppProvider({ children }) {
         updateAdminPassword,
         selectedProductForOrder,
         setSelectedProductForOrder,
+        // Cart state & methods
+        cart,
+        cartItemsWithPricing,
+        cartTotal,
+        cartOriginalTotal,
+        cartSavings,
+        cartCount,
+        addToCart,
+        updateCartQuantity,
+        removeFromCart,
+        clearCart,
+        isCartOpen,
+        setIsCartOpen,
+        isCheckoutOpen,
+        setIsCheckoutOpen,
+        cartToast,
+        setCartToast,
         calculateFinalPrice,
         calculateOfferPricing,
         addProduct,
@@ -674,6 +880,7 @@ export function AppProvider({ children }) {
         addOrder,
         updateOrderStatus,
         deleteOrder,
+        clearAllOrders,
         login,
         logout,
         resetPassword,
