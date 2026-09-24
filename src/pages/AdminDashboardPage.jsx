@@ -5,12 +5,25 @@ import AdminSidebar from '../components/admin/AdminSidebar';
 import ProductsTable from '../components/admin/ProductsTable';
 import OrdersTable from '../components/admin/OrdersTable';
 import CategoriesManager from '../components/admin/CategoriesManager';
-import { ShoppingBag, DollarSign, Package, Clock, ShieldCheck, Layers, Key, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { ShoppingBag, DollarSign, Package, Clock, ShieldCheck, Layers, Key, X, CheckCircle, AlertCircle, Cloud, Database, RefreshCw, UploadCloud } from 'lucide-react';
 
 export default function AdminDashboardPage() {
-  const { isAdminLoggedIn, products, orders, categories, adminCredentials, updateAdminPassword } = useApp();
+  const { 
+    isAdminLoggedIn, 
+    products, 
+    orders, 
+    categories, 
+    adminCredentials, 
+    updateAdminPassword,
+    isFirebaseConfigured,
+    currentAdminUser,
+    seedData
+  } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('categories'); // default to categories or products
+
+  // Seeder state
+  const [seedStatus, setSeedStatus] = useState({ loading: false, message: '', error: '' });
 
   // Password Change Modal State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -63,6 +76,16 @@ export default function AdminDashboardPage() {
       }, 1500);
     } else {
       setPasswordStatus({ error: res.message, success: '' });
+    }
+  };
+
+  const handleSeed = async () => {
+    setSeedStatus({ loading: true, message: '', error: '' });
+    const res = await seedData();
+    if (res.success) {
+      setSeedStatus({ loading: false, message: res.message, error: '' });
+    } else {
+      setSeedStatus({ loading: false, message: '', error: res.message });
     }
   };
 
@@ -257,6 +280,56 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Firebase Cloud Database Status Banner */}
+        <div className="mb-6 p-4 rounded-2xl bg-white border border-gray-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              isFirebaseConfigured ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'
+            }`}>
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-900">
+                  {isFirebaseConfigured ? 'قاعدة بيانات سحابية متصلة (Firebase Firestore) 🟢' : 'نظام التخزين المحلي النشط (Local Offline Mode) 🟡'}
+                </h4>
+                {isFirebaseConfigured && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                    آمن ومزامن حياً
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {isFirebaseConfigured 
+                  ? 'المنتجات والأقسام والطلبات مخزنة سحابياً ومحمية. أي تعديل يظهر فوراً لجميع الزوار على هواتفهم.' 
+                  : 'لتفعيل الحماية السحابية والمزامنة بين الأجهزة وحفظ آلاف الأصناف بسرعة فائقة، قم بإضافة مفاتيح Firebase في ملف .env.'}
+              </p>
+              {seedStatus.message && (
+                <span className="text-xs text-emerald-600 font-bold block mt-1">✓ {seedStatus.message}</span>
+              )}
+              {seedStatus.error && (
+                <span className="text-xs text-red-600 font-bold block mt-1">✕ {seedStatus.error}</span>
+              )}
+            </div>
+          </div>
+
+          {isFirebaseConfigured && (
+            <button
+              onClick={handleSeed}
+              disabled={seedStatus.loading}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-saudi-800 hover:bg-saudi-900 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all whitespace-nowrap self-start md:self-auto"
+              id="admin-seed-firebase-btn"
+            >
+              {seedStatus.loading ? (
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              ) : (
+                <UploadCloud className="w-4 h-4 text-gold-400" />
+              )}
+              <span>ترحيل/مزامنة المنتجات الحالية لـ Firebase</span>
+            </button>
+          )}
+        </div>
 
         {/* Stats Metrics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

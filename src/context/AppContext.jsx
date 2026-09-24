@@ -1,4 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  isFirebaseConfigured 
+} from '../firebase/config';
+import { 
+  subscribeToProducts, 
+  addProductToFirestore, 
+  updateProductInFirestore, 
+  deleteProductFromFirestore,
+  subscribeToCategories,
+  addCategoryToFirestore,
+  updateCategoryInFirestore,
+  deleteCategoryFromFirestore,
+  subscribeToOrders,
+  addOrderToFirestore,
+  updateOrderStatusInFirestore,
+  deleteOrderFromFirestore,
+  loginWithFirebase,
+  logoutWithFirebase,
+  resetPasswordWithFirebase,
+  listenToAuth,
+  seedInitialDataToFirestore
+} from '../firebase/services';
 
 const AppContext = createContext();
 
@@ -90,7 +112,7 @@ export function calculateOfferPricing(product, quantity = 1) {
   };
 }
 
-const INITIAL_PRODUCTS = [
+export const INITIAL_PRODUCTS = [
   {
     id: 1,
     name: "Bioderma Sebium Moussant Gel 200Ml",
@@ -263,20 +285,65 @@ export function AppProvider({ children }) {
     return localStorage.getItem('altayeb_admin_auth') === 'true';
   });
 
+  const [currentAdminUser, setCurrentAdminUser] = useState(null);
+
   // Active modal product for ordering
   const [selectedProductForOrder, setSelectedProductForOrder] = useState(null);
 
-  // Sync categories to localStorage
+  // -------------------------------------------------------------
+  // Real-time Firestore Subscriptions
+  // -------------------------------------------------------------
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
+    // 1. Subscribe to Categories
+    const unsubCategories = subscribeToCategories((firebaseCategories) => {
+      if (firebaseCategories && firebaseCategories.length > 0) {
+        setCategories(firebaseCategories);
+      }
+    });
+
+    // 2. Subscribe to Products
+    const unsubProducts = subscribeToProducts((firebaseProducts) => {
+      if (firebaseProducts && firebaseProducts.length > 0) {
+        setProducts(firebaseProducts);
+      }
+    });
+
+    // 3. Subscribe to Orders
+    const unsubOrders = subscribeToOrders((firebaseOrders) => {
+      if (firebaseOrders) {
+        setOrders(firebaseOrders);
+      }
+    });
+
+    // 4. Subscribe to Auth
+    const unsubAuth = listenToAuth((user) => {
+      if (user) {
+        setIsAdminLoggedIn(true);
+        setCurrentAdminUser(user);
+      }
+    });
+
+    return () => {
+      unsubCategories();
+      unsubProducts();
+      unsubOrders();
+      unsubAuth();
+    };
+  }, []);
+
+  // Sync categories to localStorage (fallback cache)
   useEffect(() => {
     localStorage.setItem('altayeb_categories', JSON.stringify(categories));
   }, [categories]);
 
-  // Sync products to localStorage
+  // Sync products to localStorage (fallback cache)
   useEffect(() => {
     localStorage.setItem('altayeb_products', JSON.stringify(products));
   }, [products]);
 
-  // Sync orders to localStorage
+  // Sync orders to localStorage (fallback cache)
   useEffect(() => {
     localStorage.setItem('altayeb_orders', JSON.stringify(orders));
   }, [orders]);
@@ -288,12 +355,13 @@ export function AppProvider({ children }) {
 
   // Derived brandsInfo dictionary from categories for O(1) lookups
   const brandsInfo = categories.reduce((acc, cat) => {
-    acc[cat.slug.toLowerCase()] = cat;
+    const key = (cat.slug || cat.id || '').toLowerCase();
+    if (key) acc[key] = cat;
     return acc;
   }, {});
 
   // Category Actions
-  const addCategory = (categoryData) => {
+  const addCategory = async (categoryData) => {
     const slug = (categoryData.slug || categoryData.nameEn || categoryData.nameAr)
       .trim()
       .toLowerCase()
@@ -310,17 +378,39 @@ export function AppProvider({ children }) {
       icon: categoryData.icon || '✨'
     };
 
+    if (isFirebaseConfigured) {
+      try {
+        await addCategoryToFirestore(newCategory);
+      } catch (e) {
+        console.error('Failed to add category to Firebase, using local fallback:', e);
+      }
+    }
+
     setCategories(prev => [...prev, newCategory]);
     return newCategory;
   };
 
-  const deleteCategory = (slug) => {
-    setCategories(prev => prev.filter(c => c.slug.toLowerCase() !== slug.toLowerCase()));
+  const deleteCategory = async (slug) => {
+    if (isFirebaseConfigured) {
+      try {
+        await deleteCategoryFromFirestore(slug);
+      } catch (e) {
+        console.error('Failed to delete category from Firebase:', e);
+      }
+    }
+    setCategories(prev => prev.filter(c => (c.slug || c.id || '').toLowerCase() !== slug.toLowerCase()));
   };
 
-  const updateCategory = (slug, updatedFields) => {
+  const updateCategory = async (slug, updatedFields) => {
+    if (isFirebaseConfigured) {
+      try {
+        await updateCategoryInFirestore(slug, updatedFields);
+      } catch (e) {
+        console.error('Failed to update category in Firebase:', e);
+      }
+    }
     setCategories(prev => prev.map(c => 
-      c.slug.toLowerCase() === slug.toLowerCase() ? { ...c, ...updatedFields } : c
+      (c.slug || c.id || '').toLowerCase() === slug.toLowerCase() ? { ...c, ...updatedFields } : c
     ));
   };
 
@@ -333,31 +423,56 @@ export function AppProvider({ children }) {
   };
 
   // Add Product
-  const addProduct = (newProduct) => {
-    const id = products.length > 0 ? Math.max(...products.map(p => Number(p.id) || 0)) + 1 : 1;
-    const productWithId = {
+  const addProduct = async (newProduct) => {
+    const productData = {
       ...newProduct,
-      id,
       price: String(newProduct.price),
       offerType: newProduct.offerType || 'percentage',
       discount: newProduct.discount || '50%'
     };
+
+    if (isFirebaseConfigured) {
+      try {
+        const added = await addProductToFirestore(productData);
+        setProducts(prev => [added, ...prev]);
+        return added;
+      } catch (e) {
+        console.error('Failed to add product to Firebase, using local fallback:', e);
+      }
+    }
+
+    const id = products.length > 0 ? Math.max(...products.map(p => Number(p.id) || 0)) + 1 : 1;
+    const productWithId = { ...productData, id };
     setProducts(prev => [productWithId, ...prev]);
     return productWithId;
   };
 
   // Update Product
-  const updateProduct = (id, updatedFields) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields } : p));
+  const updateProduct = async (id, updatedFields) => {
+    if (isFirebaseConfigured) {
+      try {
+        await updateProductInFirestore(id, updatedFields);
+      } catch (e) {
+        console.error('Failed to update product in Firebase:', e);
+      }
+    }
+    setProducts(prev => prev.map(p => String(p.id) === String(id) ? { ...p, ...updatedFields } : p));
   };
 
   // Delete Product
-  const deleteProduct = (id) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = async (id) => {
+    if (isFirebaseConfigured) {
+      try {
+        await deleteProductFromFirestore(id);
+      } catch (e) {
+        console.error('Failed to delete product from Firebase:', e);
+      }
+    }
+    setProducts(prev => prev.filter(p => String(p.id) !== String(id)));
   };
 
   // Add Order
-  const addOrder = (orderData) => {
+  const addOrder = async (orderData) => {
     const newOrderId = `SA96-${Math.floor(100000 + Math.random() * 900000)}`;
     const pricing = calculateOfferPricing(orderData.product, orderData.quantity || 1);
 
@@ -377,23 +492,45 @@ export function AppProvider({ children }) {
       createdAt: new Date().toISOString()
     };
 
+    if (isFirebaseConfigured) {
+      try {
+        await addOrderToFirestore(newOrder);
+      } catch (e) {
+        console.error('Failed to add order to Firebase, using local fallback:', e);
+      }
+    }
+
     setOrders(prev => [newOrder, ...prev]);
     return newOrder;
   };
 
   // Update Order Status
-  const updateOrderStatus = (orderId, newStatus) => {
+  const updateOrderStatus = async (orderId, newStatus) => {
+    if (isFirebaseConfigured) {
+      try {
+        await updateOrderStatusInFirestore(orderId, newStatus);
+      } catch (e) {
+        console.error('Failed to update order status in Firebase:', e);
+      }
+    }
     setOrders(prev => prev.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
+      String(order.id) === String(orderId) ? { ...order, status: newStatus } : order
     ));
   };
 
   // Delete Order
-  const deleteOrder = (orderId) => {
-    setOrders(prev => prev.filter(order => order.id !== orderId));
+  const deleteOrder = async (orderId) => {
+    if (isFirebaseConfigured) {
+      try {
+        await deleteOrderFromFirestore(orderId);
+      } catch (e) {
+        console.error('Failed to delete order from Firebase:', e);
+      }
+    }
+    setOrders(prev => prev.filter(order => String(order.id) !== String(orderId)));
   };
 
-  // Admin credentials state (persisted)
+  // Admin credentials state (local legacy fallback)
   const [adminCredentials, setAdminCredentials] = useState(() => {
     try {
       const saved = localStorage.getItem('altayeb_admin_creds');
@@ -429,31 +566,95 @@ export function AppProvider({ children }) {
     return { success: true, message: 'تم حفظ كلمة المرور الجديدة بنجاح' };
   };
 
-  // Auth check
-  const login = (username, password) => {
-    const u = username.trim();
+  // Unified login (Supports Firebase Auth & fallback)
+  const login = async (usernameOrEmail, password) => {
+    const input = usernameOrEmail.trim();
     const p = password.trim();
 
-    if (u === adminCredentials.username && p === adminCredentials.password) {
+    // 1. Try Firebase Auth if configured and looks like email
+    if (isFirebaseConfigured && input.includes('@')) {
+      try {
+        const user = await loginWithFirebase(input, p);
+        setIsAdminLoggedIn(true);
+        setCurrentAdminUser(user);
+        return { success: true };
+      } catch (err) {
+        let msg = 'فشل تسجيل الدخول بواسطة Firebase';
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+          msg = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+        } else if (err.code === 'auth/too-many-requests') {
+          msg = 'تم حظر المحاولات مؤقتاً لكثرة المحاولات الخاطئة. حاول لاحقاً.';
+        }
+        return { success: false, message: msg };
+      }
+    }
+
+    // 2. Legacy / local admin credentials fallback
+    if (input === adminCredentials.username && p === adminCredentials.password) {
       setIsAdminLoggedIn(true);
       return { success: true };
     }
-    // Also support initial fallback if not customized yet
-    if (u === 'admin' && (p === 'admin' || p === 'Altayeb@2026')) {
+    if (input === 'admin' && (p === 'admin' || p === 'Altayeb@2026')) {
       setIsAdminLoggedIn(true);
       return { success: true };
     }
 
-    return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+    return { success: false, message: 'بيانات الدخول غير صحيحة' };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (isFirebaseConfigured) {
+      try {
+        await logoutWithFirebase();
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setIsAdminLoggedIn(false);
+    setCurrentAdminUser(null);
+  };
+
+  const resetPassword = async (email) => {
+    if (!isFirebaseConfigured) {
+      return { 
+        success: false, 
+        message: 'خدمة استعادة كلمة المرور تتطلب ربط Firebase. يمكنك استخدام كلمة المرور الافتراضية (Altayeb@2026).' 
+      };
+    }
+    try {
+      await resetPasswordWithFirebase(email);
+      return { 
+        success: true, 
+        message: `تم إرسال رابط إعادة تعيين كلمة المرور إلى ${email} بنجاح` 
+      };
+    } catch (err) {
+      return { 
+        success: false, 
+        message: err.message || 'حدث خطأ أثناء إرسال رابط إعادة التعيين' 
+      };
+    }
+  };
+
+  const seedData = async () => {
+    if (!isFirebaseConfigured) {
+      return { success: false, message: 'Firebase غير متصل بعد في ملف .env' };
+    }
+    try {
+      const res = await seedInitialDataToFirestore(INITIAL_PRODUCTS, INITIAL_CATEGORIES);
+      return { 
+        success: true, 
+        message: `تم ترحيل البيانات بنجاح: ${res.productsCount} منتج، ${res.categoriesCount} قسم.` 
+      };
+    } catch (err) {
+      return { success: false, message: `فشل الترحيل: ${err.message}` };
+    }
   };
 
   return (
     <AppContext.Provider
       value={{
+        isFirebaseConfigured,
+        currentAdminUser,
         categories,
         addCategory,
         deleteCategory,
@@ -475,6 +676,8 @@ export function AppProvider({ children }) {
         deleteOrder,
         login,
         logout,
+        resetPassword,
+        seedData,
         brandsInfo
       }}
     >
