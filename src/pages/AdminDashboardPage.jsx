@@ -161,7 +161,10 @@ export default function AdminDashboardPage() {
               </div>
               <div className="text-right">
                 <span className="text-xs font-bold text-gray-900 block">{adminCredentials?.username || 'مدير النظام'}</span>
-                <span className="text-[10px] text-emerald-600 font-semibold">متصل الآن</span>
+                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  سحابي متصل (Firebase)
+                </span>
               </div>
             </div>
           </div>
@@ -281,55 +284,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Firebase Cloud Database Status Banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-white border border-gray-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              isFirebaseConfigured ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'
-            }`}>
-              <Cloud className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-gray-900">
-                  {isFirebaseConfigured ? 'قاعدة بيانات سحابية متصلة (Firebase Firestore) 🟢' : 'نظام التخزين المحلي النشط (Local Offline Mode) 🟡'}
-                </h4>
-                {isFirebaseConfigured && (
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                    آمن ومزامن حياً
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {isFirebaseConfigured 
-                  ? 'المنتجات والأقسام والطلبات مخزنة سحابياً ومحمية. أي تعديل يظهر فوراً لجميع الزوار على هواتفهم.' 
-                  : 'لتفعيل الحماية السحابية والمزامنة بين الأجهزة وحفظ آلاف الأصناف بسرعة فائقة، قم بإضافة مفاتيح Firebase في ملف .env.'}
-              </p>
-              {seedStatus.message && (
-                <span className="text-xs text-emerald-600 font-bold block mt-1">✓ {seedStatus.message}</span>
-              )}
-              {seedStatus.error && (
-                <span className="text-xs text-red-600 font-bold block mt-1">✕ {seedStatus.error}</span>
-              )}
-            </div>
-          </div>
 
-          {isFirebaseConfigured && (
-            <button
-              onClick={handleSeed}
-              disabled={seedStatus.loading}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-saudi-800 hover:bg-saudi-900 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all whitespace-nowrap self-start md:self-auto"
-              id="admin-seed-firebase-btn"
-            >
-              {seedStatus.loading ? (
-                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              ) : (
-                <UploadCloud className="w-4 h-4 text-gold-400" />
-              )}
-              <span>ترحيل/مزامنة المنتجات الحالية لـ Firebase</span>
-            </button>
-          )}
-        </div>
 
         {/* Stats Metrics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
